@@ -323,6 +323,31 @@ button[type="submit"]:hover { background: var(--accent); }
 a { color: var(--info); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
+/* ---- Mobile menu toggle ---- */
+.menu-toggle {
+    display: none;
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 200;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    font-size: 1.4rem;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+.menu-toggle-inline {
+    display: none;
+    cursor: pointer;
+    font-size: 1.3rem;
+    margin-right: 0.5rem;
+    color: var(--primary);
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
     .sidebar { width: 0; overflow: hidden; }
@@ -330,4 +355,7 @@ a:hover { text-decoration: underline; }
     .main-content { margin-left: 0; }
     .card-grid, .compare-grid { grid-template-columns: 1fr; }
     .content-body { padding: 1rem; }
+    .menu-toggle { display: block; }
+    .menu-toggle-inline { display: inline; }
+    .topbar { padding: 0.7rem 1rem; }
 }
