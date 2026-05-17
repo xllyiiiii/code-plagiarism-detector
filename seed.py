@@ -1,4 +1,5 @@
 """Initialize database with demo accounts and sample data."""
+from datetime import datetime
 from app import create_app, db
 from app.models import User, Course, Enrollment, Assignment
 
@@ -50,7 +51,7 @@ with app.app_context():
         course_id=course.id,
         title='实验一：二叉树的遍历',
         description='实现二叉树的前序、中序、后序遍历，并提交源代码。',
-        due_date='2026-06-15 23:59:59',
+        due_date=datetime(2026, 6, 15, 23, 59, 59),
         allowed_extensions='py,java,c,cpp',
         similarity_threshold=0.70
     )
