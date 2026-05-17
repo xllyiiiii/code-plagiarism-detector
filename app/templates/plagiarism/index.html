@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}查重中心{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>查重中心</h1>
+    {% if current_user.role == 'student' %}
+        <a class="btn btn-primary" href="{{ url_for('plagiarism.my_report') }}">我的学习报告</a>
+    {% endif %}
+</div>
+
+{% if assignments %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>作业标题</th>
+            <th>提交数</th>
+            <th>最新查重</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for a in assignments %}
+        {% set sub_count = a.submissions.count() %}
+        <tr>
+            <td>{{ a.title }}</td>
+            <td>{{ sub_count }}</td>
+            <td>
+                {% set task = a._latest_task %}
+                {% if task %}
+                    {% if task.status == 'completed' %}
+                        <span class="badge badge-active">已完成</span>
+                        {{ task.completed_at.strftime('%m-%d %H:%M') if task.completed_at }}
+                    {% elif task.status == 'running' %}
+                        <span class="badge" style="background:#fff3cd;color:#856404">运行中</span>
+                    {% elif task.status == 'failed' %}
+                        <span class="badge badge-archived">失败</span>
+                    {% else %}
+                        <span class="badge badge-archived">待处理</span>
+                    {% endif %}
+                {% else %}
+                    <span class="muted">未查重</span>
+                {% endif %}
+            </td>
+            <td>
+                {% if sub_count >= 2 %}
+                    <form method="POST" action="{{ url_for('plagiarism.run_analysis', assignment_id=a.id) }}"
+                          style="display:inline">
+                        <button type="submit" class="btn btn-sm btn-primary">开始查重</button>
+                    </form>
+                {% endif %}
+                {% set task2 = a._latest_task %}
+                {% if task2 and task2.status == 'completed' %}
+                    <a href="{{ url_for('plagiarism.report', assignment_id=a.id) }}"
+                       class="btn btn-sm btn-outline">查看报告</a>
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state"><p>暂无作业数据</p></div>
+{% endif %}
+{% endblock %}

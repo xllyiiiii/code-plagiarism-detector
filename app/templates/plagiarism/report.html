@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}查重报告 - {{ assignment.title }}{% endblock %}
+{% block head_extra %}
+<script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+    <a href="{{ url_for('plagiarism.index') }}">← 返回查重中心</a>
+    <h1>查重报告：{{ assignment.title }}</h1>
+</div>
+
+<div class="meta-row">
+    <span>阈值：{{ (assignment.similarity_threshold * 100)|int }}%</span>
+    <span>提交数：{{ submissions|length }}</span>
+    {% if task %}
+        <span>状态：{{ task.status }}</span>
+        {% if task.completed_at %}
+            <span>完成时间：{{ task.completed_at.strftime('%Y-%m-%d %H:%M') }}</span>
+        {% endif %}
+    {% endif %}
+</div>
+
+{% if sim_results %}
+
+<!-- Similarity Heatmap -->
+<div class="card" style="margin-top:1.5rem">
+    <h3>相似度热力图</h3>
+    <div id="heatmap" style="width:100%;height:400px"></div>
+</div>
+
+<!-- Top Similar Pairs -->
+<div class="card" style="margin-top:1.5rem">
+    <h3>高相似度代码对</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>代码 A (学生)</th>
+                <th>代码 B (学生)</th>
+                <th>Jaccard</th>
+                <th>TreeEdit</th>
+                <th>N-gram</th>
+                <th>综合相似度</th>
+                <th>状态</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for r in sim_results %}
+            <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ r.submission_a.student.display_name or r.submission_a.student.username }}
+                    <small class="muted">({{ r.submission_a.file_name }})</small>
+                </td>
+                <td>{{ r.submission_b.student.display_name or r.submission_b.student.username }}
+                    <small class="muted">({{ r.submission_b.file_name }})</small>
+                </td>
+                <td>{{ (r.jaccard_similarity * 100)|int }}%</td>
+                <td>{{ (r.tree_edit_similarity * 100)|int }}%</td>
+                <td>{{ (r.ngram_similarity * 100)|int }}%</td>
+                <td>
+                    <strong style="color:{% if r.final_similarity >= 0.85 %}#d32f2f{% elif r.final_similarity >= 0.7 %}#f57c00{% else %}#388e3c{% endif %}">
+                        {{ (r.final_similarity * 100)|int }}%
+                    </strong>
+                </td>
+                <td>
+                    {% if r.is_plagiarism is none %}
+                        <span class="badge" style="background:#fff3cd;color:#856404">待复核</span>
+                    {% elif r.is_plagiarism %}
+                        <span class="badge badge-archived">已确认抄袭</span>
+                    {% else %}
+                        <span class="badge badge-active">人工排除</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <a href="{{ url_for('plagiarism.compare_code', result_id=r.id) }}"
+                       class="btn btn-sm btn-outline">对比查看</a>
+                    {% if current_user.role in ('teacher', 'admin') %}
+                        <form method="POST" action="{{ url_for('plagiarism.review', result_id=r.id) }}"
+                              style="display:inline;margin-top:4px">
+                            <button name="action" value="confirm" class="btn btn-sm"
+                                    style="background:#d32f2f;color:#fff">确认抄袭</button>
+                            <button name="action" value="clear" class="btn btn-sm"
+                                    style="background:#388e3c;color:#fff">排除</button>
+                        </form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Plagiarism Groups -->
+{% if groups %}
+<div class="card" style="margin-top:1.5rem">
+    <h3>抄袭关系组</h3>
+    {% for g in groups %}
+        <div style="margin-bottom:1rem;padding:0.75rem;background:#fff3e0;border-radius:4px">
+            <strong>{{ g.label }}</strong><br>
+            {% for m in g.members %}
+                {{ m.submission.student.display_name or m.submission.student.username }}
+                {% if m.is_original %}<span class="badge badge-active">疑似原创</span>{% endif %}
+                {% if not loop.last %} → {% endif %}
+            {% endfor %}
+        </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+    <p>暂无相似度数据。请点击「开始查重」进行分析。</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+{% if sim_results %}
+// Heatmap
+(function(){
+    var dom = document.getElementById('heatmap');
+    if (!dom) return;
+    var chart = echarts.init(dom);
+    var labels = {{ labels|safe }};
+    var data = {{ heatmap_data|safe }};
+    var option = {
+        tooltip: {
+            formatter: function(p) {
+                return labels[p.value[0]] + ' vs ' + labels[p.value[1]]
+                       + '<br>相似度: ' + (p.value[2] * 100).toFixed(0) + '%';
+            }
+        },
+        xAxis: { type: 'category', data: labels, axisLabel: { rotate: 45 } },
+        yAxis: { type: 'category', data: labels },
+        visualMap: {
+            min: 0, max: 1,
+            inRange: { color: ['#e8f5e9', '#fff9c4', '#ffcc02', '#ff9800', '#f44336'] },
+            calculable: true,
+            orient: 'horizontal',
+            left: 'center',
+            bottom: 0
+        },
+        series: [{
+            type: 'heatmap',
+            data: data,
+            label: { show: true, formatter: function(p) { return (p.value[2]*100).toFixed(0)+'%'; } },
+            emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } }
+        }]
+    };
+    chart.setOption(option);
+    window.addEventListener('resize', function(){ chart.resize(); });
+})();
+{% endif %}
+</script>
+{% endblock %}

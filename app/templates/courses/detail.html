@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block title %}{{ course.name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <a href="{{ url_for('courses.index') }}">← 返回课程列表</a>
+    <h1>{{ course.name }}</h1>
+    <div class="meta-row">
+        <span>学期：{{ course.semester or '-' }}</span>
+        <span>邀请码：<code>{{ course.invite_code }}</code></span>
+        <span>状态：{{ '已归档' if course.is_archived else '进行中' }}</span>
+    </div>
+    {% if current_user.role in ('teacher', 'admin') %}
+        <form method="POST" action="{{ url_for('courses.archive', course_id=course.id) }}" style="display:inline">
+            <button type="submit" class="btn btn-sm">
+                {{ '取消归档' if course.is_archived else '归档课程' }}
+            </button>
+        </form>
+    {% endif %}
+</div>
+
+{% if course.description %}
+<p class="desc-block">{{ course.description }}</p>
+{% endif %}
+
+<div class="card-grid">
+    <div class="card">
+        <h3>学生列表 ({{ students|length }})</h3>
+        {% if students %}
+        <ul class="student-list">
+        {% for s in students %}
+            <li>{{ s.display_name or s.username }}</li>
+        {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">暂无学生加入</p>
+        {% endif %}
+    </div>
+
+    <div class="card">
+        <h3>
+            作业列表 ({{ assignments|length }})
+            {% if current_user.role in ('teacher', 'admin') %}
+                <a href="{{ url_for('assignments.create', course_id=course.id) }}"
+                   class="btn btn-sm btn-primary" style="float:right">+ 创建作业</a>
+            {% endif %}
+        </h3>
+        {% if assignments %}
+        <ul>
+        {% for a in assignments %}
+            <li><a href="{{ url_for('assignments.detail', assignment_id=a.id) }}">{{ a.title }}</a></li>
+        {% endfor %}
+        </ul>
+        {% else %}
+        <p class="muted">暂无作业</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

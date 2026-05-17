@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}课程列表{% endblock %}
+{% block content %}
+<div class="page-header">
+    <h1>课程列表</h1>
+    {% if current_user.role in ('teacher', 'admin') %}
+        <a class="btn btn-primary" href="{{ url_for('courses.create') }}">+ 创建课程</a>
+    {% endif %}
+    {% if current_user.role == 'student' %}
+        <a class="btn btn-outline" href="{{ url_for('courses.join') }}">+ 加入课程</a>
+    {% endif %}
+</div>
+
+{% if courses %}
+<table class="table">
+    <thead>
+        <tr>
+            <th>课程名称</th>
+            <th>学期</th>
+            <th>邀请码</th>
+            <th>状态</th>
+            <th>操作</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for course in courses %}
+        <tr>
+            <td>
+                <a href="{{ url_for('courses.detail', course_id=course.id) }}">
+                    {{ course.name }}
+                </a>
+            </td>
+            <td>{{ course.semester or '-' }}</td>
+            <td><code>{{ course.invite_code }}</code></td>
+            <td>
+                {% if course.is_archived %}
+                    <span class="badge badge-archived">已归档</span>
+                {% else %}
+                    <span class="badge badge-active">进行中</span>
+                {% endif %}
+            </td>
+            <td>
+                <a href="{{ url_for('courses.detail', course_id=course.id) }}">查看</a>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% else %}
+<div class="empty-state">
+    <p>暂无课程</p>
+    {% if current_user.role == 'student' %}
+        <p>请通过邀请码加入课程</p>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,130 @@
+{% extends "base.html" %}
+{% block title %}代码审查 - {{ submission.file_name }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <a href="{{ url_for('plagiarism.my_report') }}">← 返回学习报告</a>
+    <h1>代码审查报告</h1>
+</div>
+
+<div class="meta-row">
+    <span>作业：{{ submission.assignment.title }}</span>
+    <span>文件：{{ submission.file_name }}</span>
+    <span>语言：{{ submission.language }}</span>
+    <span>提交：{{ submission.submitted_at.strftime('%Y-%m-%d %H:%M') }}</span>
+</div>
+
+<!-- Score Card -->
+<div class="card-grid" style="margin-top:1.5rem">
+    <div class="card" style="text-align:center">
+        <div style="font-size:3rem;font-weight:700;color:{% if report.score >= 80 %}#388e3c{% elif report.score >= 60 %}#f57c00{% else %}#d32f2f{% endif %}">
+            {{ report.score }}
+        </div>
+        <div class="muted">质量得分 / 100</div>
+        <div class="badge badge-{{ 'active' if report.score >= 60 else 'archived' }}">
+            {{ report.grade }}
+        </div>
+    </div>
+    <div class="card">
+        <div style="display:flex;justify-content:space-around;text-align:center">
+            <div>
+                <div style="font-size:1.5rem;font-weight:600">{{ report.total_lines }}</div>
+                <div class="muted">总行数</div>
+            </div>
+            <div>
+                <div style="font-size:1.5rem;font-weight:600">{{ report.issues|length }}</div>
+                <div class="muted">问题数</div>
+            </div>
+            <div>
+                <div style="font-size:1.5rem;font-weight:600">{{ sim_pairs|length }}</div>
+                <div class="muted">相似对</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Issues -->
+<div class="card" style="margin-top:1.5rem">
+    <h3>检测到的问题 ({{ report.issues|length }})</h3>
+    {% if report.issues %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>严重程度</th>
+                <th>类别</th>
+                <th>问题描述</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for issue in report.issues %}
+            <tr>
+                <td>
+                    <span style="color:{% if issue.severity == '高' %}#d32f2f{% elif issue.severity == '中' %}#f57c00{% else %}#666{% endif %};font-weight:bold">
+                        {{ issue.severity }}
+                    </span>
+                </td>
+                <td><span class="badge badge-archived">{{ issue.category }}</span></td>
+                <td>{{ issue.message }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color:#388e3c;font-weight:500">未发现代码质量问题！</p>
+    {% endif %}
+</div>
+
+<!-- Suggestions -->
+<div class="card" style="margin-top:1.5rem">
+    <h3>改进建议</h3>
+    {% for s in report.suggestions %}
+        <div style="padding:0.75rem;margin:0.5rem 0;background:#f5f5f5;border-radius:6px;border-left:4px solid #1976d2">
+            <strong>{{ s.title }}</strong>
+            <p style="color:#666;margin:0.3rem 0;font-size:0.9rem">{{ s.detail }}</p>
+            {% if s.resource %}
+                <small style="color:#1976d2">推荐阅读：{{ s.resource }}</small>
+            {% endif %}
+        </div>
+    {% endfor %}
+</div>
+
+<!-- Similar submissions -->
+{% if sim_pairs %}
+<div class="card" style="margin-top:1.5rem">
+    <h3>相似度记录</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>比对对象</th>
+                <th>综合相似度</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for sr in sim_pairs %}
+            {% set other = sr.submission_a if sr.submission_b_id == submission.id else sr.submission_b %}
+            <tr>
+                <td>{{ other.student.display_name or other.student.username }}
+                    <small class="muted">({{ other.file_name }})</small>
+                </td>
+                <td>
+                    <strong style="color:{% if sr.final_similarity >= 0.85 %}#d32f2f{% elif sr.final_similarity >= 0.7 %}#f57c00{% else %}#388e3c{% endif %}">
+                        {{ (sr.final_similarity * 100)|int }}%
+                    </strong>
+                </td>
+                <td>
+                    <a href="{{ url_for('plagiarism.compare_code', result_id=sr.id) }}"
+                       class="btn btn-sm btn-outline">查看对比</a>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- Source Code -->
+<div class="card" style="margin-top:1.5rem">
+    <h3>源代码</h3>
+    <pre class="code-block" style="max-height:400px"><code>{{ source_code }}</code></pre>
+</div>
+{% endblock %}

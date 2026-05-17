@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}代码对比{% endblock %}
+{% block content %}
+<div class="page-header">
+    <a href="{{ url_for('plagiarism.report', assignment_id=sim.assignment_id) }}">← 返回报告</a>
+    <h1>代码对比视图</h1>
+</div>
+
+<div class="meta-row">
+    <span>相似度：
+        <strong style="color:{% if sim.final_similarity >= 0.85 %}#d32f2f{% elif sim.final_similarity >= 0.7 %}#f57c00{% else %}#388e3c{% endif %}">
+            {{ (sim.final_similarity * 100)|int }}%
+        </strong>
+    </span>
+    <span>Jaccard: {{ (sim.jaccard_similarity * 100)|int }}%</span>
+    <span>TreeEdit: {{ (sim.tree_edit_similarity * 100)|int }}%</span>
+    <span>N-gram: {{ (sim.ngram_similarity * 100)|int }}%</span>
+</div>
+
+<div class="compare-grid">
+    <div class="compare-panel">
+        <div class="compare-header">
+            {{ sim.submission_a.student.display_name or sim.submission_a.student.username }}
+            <small>({{ sim.submission_a.file_name }})</small>
+            {% if sim.submission_a.is_late %}<span class="badge badge-archived">逾期</span>{% endif %}
+        </div>
+        <pre class="code-block"><code>{{ code_a }}</code></pre>
+    </div>
+
+    <div class="compare-panel">
+        <div class="compare-header">
+            {{ sim.submission_b.student.display_name or sim.submission_b.student.username }}
+            <small>({{ sim.submission_b.file_name }})</small>
+            {% if sim.submission_b.is_late %}<span class="badge badge-archived">逾期</span>{% endif %}
+        </div>
+        <pre class="code-block"><code>{{ code_b }}</code></pre>
+    </div>
+</div>
+
+{% if sim.fragments.count() > 0 %}
+<div class="card" style="margin-top:1.5rem">
+    <h3>相似片段</h3>
+    {% for frag in sim.fragments %}
+        <div style="padding:0.5rem;margin:0.25rem 0;background:#fff3e0;border-radius:4px">
+            行 {{ frag.source_start_line }}-{{ frag.source_end_line }}
+            ↔ 行 {{ frag.target_start_line }}-{{ frag.target_end_line }}
+            (相似度: {{ (frag.similarity * 100)|int }}%)
+        </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

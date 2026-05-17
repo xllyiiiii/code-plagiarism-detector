@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}加入课程{% endblock %}
+{% block content %}
+<div class="form-container">
+    <h2>加入课程</h2>
+    <form method="POST">
+        <div class="form-group">
+            <label>课程邀请码</label>
+            <input type="text" name="invite_code" required
+                   placeholder="请输入教师提供的邀请码" style="text-transform:uppercase">
+        </div>
+        <button type="submit">加入课程</button>
+    </form>
+    <p class="form-footer">
+        <a href="{{ url_for('courses.index') }}">← 返回课程列表</a>
+    </p>
+</div>
+{% endblock %}

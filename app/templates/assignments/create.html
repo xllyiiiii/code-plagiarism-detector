@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}创建作业{% endblock %}
+{% block content %}
+<div class="form-container" style="max-width:540px">
+    <h2>创建作业</h2>
+    <p style="text-align:center;color:#666;margin-bottom:1rem">
+        课程：{{ course.name }}
+    </p>
+    <form method="POST">
+        <div class="form-group">
+            <label>作业标题 <span style="color:red">*</span></label>
+            <input type="text" name="title" required placeholder="例如：实验一：二叉树遍历">
+        </div>
+        <div class="form-group">
+            <label>作业描述</label>
+            <textarea name="description" rows="3" placeholder="作业要求和说明"></textarea>
+        </div>
+        <div class="form-group">
+            <label>截止日期 <span style="color:red">*</span></label>
+            <input type="datetime-local" name="due_date" required>
+        </div>
+        <div class="form-group">
+            <label>允许文件类型</label>
+            <input type="text" name="allowed_extensions" value="py,java,c,cpp,js"
+                   placeholder="逗号分隔，如：py,java,c">
+        </div>
+        <div class="form-group">
+            <label>抄袭阈值 (0~1)</label>
+            <input type="number" name="similarity_threshold" value="0.70"
+                   min="0" max="1" step="0.05">
+        </div>
+        <button type="submit">创建作业</button>
+    </form>
+    <p class="form-footer">
+        <a href="{{ url_for('courses.detail', course_id=course.id) }}">← 返回课程</a>
+    </p>
+</div>
+{% endblock %}

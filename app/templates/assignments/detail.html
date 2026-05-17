@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ assignment.title }}{% endblock %}
+{% block content %}
+<div class="page-header">
+    <a href="{{ url_for('assignments.index') }}">← 返回作业列表</a>
+    <h1>{{ assignment.title }}</h1>
+</div>
+
+<div class="meta-row">
+    <span>课程：{{ course.name }}</span>
+    <span>截止：{{ assignment.due_date.strftime('%Y-%m-%d %H:%M') }}</span>
+    <span>允许类型：{{ assignment.allowed_extensions }}</span>
+</div>
+
+{% if assignment.description %}
+<p class="desc-block">{{ assignment.description }}</p>
+{% endif %}
+
+<!-- Student: Submit code -->
+{% if current_user.role == 'student' %}
+<div class="card" style="margin-top:1.5rem">
+    <h3>提交代码</h3>
+    <form method="POST" action="{{ url_for('assignments.submit', assignment_id=assignment.id) }}"
+          enctype="multipart/form-data">
+        <div class="form-group">
+            <input type="file" name="file" required
+                   accept=".py,.java,.c,.cpp,.js">
+        </div>
+        <button type="submit" style="width:auto">上传提交</button>
+    </form>
+
+    {% if my_submission %}
+    <div style="margin-top:1rem; padding:0.75rem; background:#e8f5e9; border-radius:4px">
+        <strong>我的提交</strong><br>
+        文件：{{ my_submission.file_name }}<br>
+        时间：{{ my_submission.submitted_at.strftime('%Y-%m-%d %H:%M:%S') }}<br>
+        版本：{{ my_submission.version }}
+        {% if my_submission.is_late %}
+            <span class="badge badge-archived">逾期提交</span>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Teacher: View all submissions -->
+{% if current_user.role in ('teacher', 'admin') %}
+<div class="card" style="margin-top:1.5rem">
+    <h3>提交记录 ({{ submissions|length }})</h3>
+    {% if submissions %}
+    <table class="table">
+        <thead>
+            <tr>
+                <th>学生</th>
+                <th>文件名</th>
+                <th>语言</th>
+                <th>大小</th>
+                <th>提交时间</th>
+                <th>版本</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for sub in submissions %}
+            <tr>
+                <td>{{ sub.student.display_name or sub.student.username }}</td>
+                <td>{{ sub.file_name }}</td>
+                <td>{{ sub.language }}</td>
+                <td>{{ (sub.file_size / 1024)|round(1) if sub.file_size else '-' }} KB</td>
+                <td>{{ sub.submitted_at.strftime('%m-%d %H:%M') }}</td>
+                <td>v{{ sub.version }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="muted">暂无提交</p>
+    {% endif %}
+</div>
+{% endif %}
+{% endblock %}
