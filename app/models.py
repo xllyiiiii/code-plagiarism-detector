@@ -19,6 +19,7 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(16), nullable=False, default='student')  # student / teacher / admin
     email = db.Column(db.String(128), unique=True)
     display_name = db.Column(db.String(64))
+    is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
     # Relationships

@@ -87,6 +87,32 @@
     {% endfor %}
 </div>
 
+<!-- Pair-specific refactoring suggestions -->
+{% if refactor_suggestions %}
+<div class="card" style="margin-top:1.5rem">
+    <h3>相似代码重构建议</h3>
+    {% for rs in refactor_suggestions %}
+        <div style="margin-bottom:1.25rem;padding:0.75rem;background:#fff8e1;border-radius:6px;border-left:4px solid #f57c00">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem">
+                <strong>与 {{ rs.other_student }} ({{ rs.other_file }}) 对比</strong>
+                <span style="color:{% if rs.similarity_result.final_similarity >= 0.85 %}#d32f2f{% elif rs.similarity_result.final_similarity >= 0.7 %}#f57c00{% else %}#388e3c{% endif %};font-weight:700">
+                    {{ (rs.similarity_result.final_similarity * 100)|int }}% 相似
+                </span>
+            </div>
+            {% for s in rs.suggestions %}
+                <div style="padding:0.5rem;margin:0.4rem 0;background:#fff;border-radius:4px">
+                    <strong style="color:#d32f2f">{{ s.title }}</strong>
+                    <p style="color:#666;margin:0.2rem 0;font-size:0.9rem">{{ s.detail }}</p>
+                    <small style="color:#1976d2">参考：{{ s.resource }}</small>
+                </div>
+            {% endfor %}
+            <a href="{{ url_for('plagiarism.compare_code', result_id=rs.similarity_result.id) }}"
+               class="btn btn-sm btn-outline" style="margin-top:0.25rem">查看代码对比</a>
+        </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 <!-- Similar submissions -->
 {% if sim_pairs %}
 <div class="card" style="margin-top:1.5rem">

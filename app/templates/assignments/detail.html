@@ -46,7 +46,13 @@
 <!-- Teacher: View all submissions -->
 {% if current_user.role in ('teacher', 'admin') %}
 <div class="card" style="margin-top:1.5rem">
-    <h3>提交记录 ({{ submissions|length }})</h3>
+    <div style="display:flex;justify-content:space-between;align-items:center">
+        <h3 style="margin:0;border:none;padding:0">提交记录 ({{ submissions|length }})</h3>
+        {% if submissions %}
+            <a href="{{ url_for('plagiarism.download_all', assignment_id=assignment.id) }}"
+               class="btn btn-sm btn-primary">打包下载全部</a>
+        {% endif %}
+    </div>
     {% if submissions %}
     <table class="table">
         <thead>

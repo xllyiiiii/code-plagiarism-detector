@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}系统配置{% endblock %}
+{% block content %}
+<div class="page-header">
+    <a href="{{ url_for('admin.index') }}">← 返回管理后台</a>
+    <h1>系统配置</h1>
+</div>
+
+<div class="card">
+    <h3>当前配置</h3>
+    <table class="table">
+        <thead>
+            <tr><th>配置项</th><th>值</th><th>说明</th></tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td><strong>SECRET_KEY</strong></td>
+                <td><code>{{ config.SECRET_KEY }}</code></td>
+                <td class="muted">应用密钥（用于 session 签名和 CSRF token）</td>
+            </tr>
+            <tr>
+                <td><strong>DATABASE_URI</strong></td>
+                <td><code style="word-break:break-all">{{ config.SQLALCHEMY_DATABASE_URI }}</code></td>
+                <td class="muted">数据库连接地址</td>
+            </tr>
+            <tr>
+                <td><strong>UPLOAD_FOLDER</strong></td>
+                <td><code>{{ config.UPLOAD_FOLDER }}</code></td>
+                <td class="muted">代码文件上传目录</td>
+            </tr>
+            <tr>
+                <td><strong>MAX_CONTENT_LENGTH</strong></td>
+                <td><code>{{ config.MAX_CONTENT_LENGTH }}</code></td>
+                <td class="muted">单文件上传大小上限</td>
+            </tr>
+            <tr>
+                <td><strong>ALLOWED_EXTENSIONS</strong></td>
+                <td><code>{{ config.ALLOWED_EXTENSIONS }}</code></td>
+                <td class="muted">允许上传的文件扩展名</td>
+            </tr>
+            <tr>
+                <td><strong>SIMILARITY_THRESHOLD</strong></td>
+                <td><code>{{ config.SIMILARITY_THRESHOLD_DEFAULT }}</code></td>
+                <td class="muted">默认相似度阈值</td>
+            </tr>
+        </tbody>
+    </table>
+</div>
+
+<div class="card" style="margin-top:1.5rem">
+    <h3>修改配置</h3>
+    <p class="muted">通过环境变量或 <code>app/config.py</code> 修改配置。更改后需重启应用生效。</p>
+    <div style="background:#1e1e2e;color:#cdd6f4;padding:1rem;border-radius:6px;font-family:monospace;font-size:0.85rem">
+        <div># Linux / macOS</div>
+        <div>export SECRET_KEY=your-random-secret-key</div>
+        <div>export UPLOAD_FOLDER=/data/uploads</div>
+        <div style="margin-top:0.5rem"># Windows PowerShell</div>
+        <div>$env:SECRET_KEY = "your-random-secret-key"</div>
+    </div>
+</div>
+{% endblock %}

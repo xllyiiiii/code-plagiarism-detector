@@ -1,6 +1,109 @@
 {% extends "base.html" %}
 {% block title %}管理后台{% endblock %}
+{% block head_extra %}
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+{% endblock %}
 {% block content %}
-<h1>管理后台</h1>
-<p>系统管理模块（待完善）</p>
+<div class="page-header">
+    <h1>管理后台</h1>
+</div>
+
+<!-- Stats Cards -->
+<div class="card-grid card-grid-3" style="margin-bottom:1.5rem">
+    <div class="card" style="text-align:center">
+        <div style="font-size:2.2rem;font-weight:700;color:var(--primary)">{{ stats.user_count }}</div>
+        <div class="muted">总用户数</div>
+        <small style="color:#666">学生 {{ stats.student_count }} / 教师 {{ stats.teacher_count }}</small>
+    </div>
+    <div class="card" style="text-align:center">
+        <div style="font-size:2.2rem;font-weight:700;color:var(--success)">{{ stats.active_course_count }}</div>
+        <div class="muted">活跃课程 (共 {{ stats.course_count }})</div>
+    </div>
+    <div class="card" style="text-align:center">
+        <div style="font-size:2.2rem;font-weight:700;color:var(--info)">{{ stats.submission_count }}</div>
+        <div class="muted">代码提交总数</div>
+    </div>
+</div>
+
+<div class="card-grid" style="margin-bottom:1.5rem">
+    <div class="card" style="text-align:center">
+        <div style="font-size:2.2rem;font-weight:700;color:var(--warning)">{{ stats.analysis_count }}</div>
+        <div class="muted">相似度记录</div>
+    </div>
+    <div class="card" style="text-align:center">
+        <div style="font-size:2.2rem;font-weight:700;color:var(--danger)">{{ stats.plagiarism_group_count }}</div>
+        <div class="muted">抄袭关系组</div>
+    </div>
+    <div class="card" style="text-align:center">
+        <div style="font-size:1.8rem;font-weight:700;color:#666">{{ stats.storage_mb }} MB</div>
+        <div class="muted">存储使用 ({{ stats.upload_count }} 文件)</div>
+    </div>
+</div>
+
+<!-- Quick Links -->
+<div class="card" style="margin-bottom:1.5rem">
+    <h3>快捷操作</h3>
+    <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
+        <a href="{{ url_for('admin.users') }}" class="btn btn-primary">用户管理</a>
+        <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-outline">审计日志</a>
+        <a href="{{ url_for('admin.system_config') }}" class="btn btn-outline">系统配置</a>
+    </div>
+</div>
+
+<!-- Similarity Distribution -->
+<div class="card" style="margin-bottom:1.5rem">
+    <h3>全局相似度分布</h3>
+    <div id="global-dist" style="width:100%;height:250px"></div>
+</div>
+
+<!-- Recent Audit Logs -->
+<div class="card">
+    <h3>最近操作日志</h3>
+    <table class="table">
+        <thead>
+            <tr><th>时间</th><th>用户</th><th>操作</th><th>目标</th><th>详情</th></tr>
+        </thead>
+        <tbody>
+        {% for log in recent_logs %}
+            <tr>
+                <td>{{ log.created_at.strftime('%m-%d %H:%M') }}</td>
+                <td>{{ log.user.display_name or log.user.username if log.user else '系统' }}</td>
+                <td><code>{{ log.action }}</code></td>
+                <td>{{ log.target_type }}/{{ log.target_id }}</td>
+                <td><small class="muted">{{ log.detail or '' }}</small></td>
+            </tr>
+        {% else %}
+            <tr><td colspan="5" style="text-align:center;color:#999">暂无日志</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function(){
+    var dom = document.getElementById('global-dist');
+    if (!dom) return;
+    var chart = echarts.init(dom);
+    fetch("{{ url_for('admin.api_stats') }}")
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            chart.setOption({
+                tooltip: { trigger: 'axis' },
+                xAxis: { type: 'category', data: ['0-20%', '20-40%', '40-60%', '60-80%', '80-100%'],
+                         name: '相似度区间' },
+                yAxis: { type: 'value', name: '记录数' },
+                series: [{
+                    type: 'bar', data: data.similarity_distribution,
+                    itemStyle: { color: function(p) {
+                        return ['#388e3c','#4caf50','#ff9800','#f57c00','#d32f2f'][p.dataIndex];
+                    }},
+                    label: { show: true, position: 'top' }
+                }]
+            });
+        });
+    window.addEventListener('resize', function(){ chart.resize(); });
+})();
+</script>
 {% endblock %}

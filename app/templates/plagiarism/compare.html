@@ -1,5 +1,9 @@
 {% extends "base.html" %}
 {% block title %}代码对比{% endblock %}
+{% block head_extra %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/styles/atom-one-dark.min.css">
+<script src="https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.9.0/build/highlight.min.js"></script>
+{% endblock %}
 {% block content %}
 <div class="page-header">
     <a href="{{ url_for('plagiarism.report', assignment_id=sim.assignment_id) }}">← 返回报告</a>
@@ -7,8 +11,8 @@
 </div>
 
 <div class="meta-row">
-    <span>相似度：
-        <strong style="color:{% if sim.final_similarity >= 0.85 %}#d32f2f{% elif sim.final_similarity >= 0.7 %}#f57c00{% else %}#388e3c{% endif %}">
+    <span>综合相似度：
+        <strong style="font-size:1.2rem;color:{% if sim.final_similarity >= 0.85 %}#d32f2f{% elif sim.final_similarity >= 0.7 %}#f57c00{% else %}#388e3c{% endif %}">
             {{ (sim.final_similarity * 100)|int }}%
         </strong>
     </span>
@@ -24,7 +28,17 @@
             <small>({{ sim.submission_a.file_name }})</small>
             {% if sim.submission_a.is_late %}<span class="badge badge-archived">逾期</span>{% endif %}
         </div>
-        <pre class="code-block"><code>{{ code_a }}</code></pre>
+        <div class="diff-container" style="overflow:auto;max-height:70vh">
+            <table class="diff-table">
+            {% for line in lines_a %}
+                <tr class="{{ line.css_class }}">
+                    <td class="line-num">{{ line.num }}</td>
+                    <td class="line-sign">{{ line.sign }}</td>
+                    <td class="line-code"><pre><code class="language-{{ lang }}">{{ line.text }}</code></pre></td>
+                </tr>
+            {% endfor %}
+            </table>
+        </div>
     </div>
 
     <div class="compare-panel">
@@ -33,7 +47,17 @@
             <small>({{ sim.submission_b.file_name }})</small>
             {% if sim.submission_b.is_late %}<span class="badge badge-archived">逾期</span>{% endif %}
         </div>
-        <pre class="code-block"><code>{{ code_b }}</code></pre>
+        <div class="diff-container" style="overflow:auto;max-height:70vh">
+            <table class="diff-table">
+            {% for line in lines_b %}
+                <tr class="{{ line.css_class }}">
+                    <td class="line-num">{{ line.num }}</td>
+                    <td class="line-sign">{{ line.sign }}</td>
+                    <td class="line-code"><pre><code class="language-{{ lang }}">{{ line.text }}</code></pre></td>
+                </tr>
+            {% endfor %}
+            </table>
+        </div>
     </div>
 </div>
 
@@ -49,4 +73,40 @@
     {% endfor %}
 </div>
 {% endif %}
+
+<!-- Similarity Components Detail -->
+<div class="card" style="margin-top:1.5rem">
+    <h3>相似度分析详情</h3>
+    <div class="card-grid card-grid-3" style="margin-top:1rem">
+        <div style="text-align:center;padding:1rem;background:#f5f5f5;border-radius:6px">
+            <div style="font-size:1.5rem;font-weight:700;color:{{ '#d32f2f' if sim.jaccard_similarity >= 0.7 else '#388e3c' }}">
+                {{ (sim.jaccard_similarity * 100)|int }}%
+            </div>
+            <div class="muted">AST 子树 Jaccard 相似度</div>
+            <small style="color:#888">对重命名完全不敏感</small>
+        </div>
+        <div style="text-align:center;padding:1rem;background:#f5f5f5;border-radius:6px">
+            <div style="font-size:1.5rem;font-weight:700;color:{{ '#d32f2f' if sim.tree_edit_similarity >= 0.7 else '#388e3c' }}">
+                {{ (sim.tree_edit_similarity * 100)|int }}%
+            </div>
+            <div class="muted">树编辑距离相似度</div>
+            <small style="color:#888">捕获结构层面的相似性</small>
+        </div>
+        <div style="text-align:center;padding:1rem;background:#f5f5f5;border-radius:6px">
+            <div style="font-size:1.5rem;font-weight:700;color:{{ '#d32f2f' if sim.ngram_similarity >= 0.7 else '#388e3c' }}">
+                {{ (sim.ngram_similarity * 100)|int }}%
+            </div>
+            <div class="muted">Token N-gram 相似度</div>
+            <small style="color:#888">捕获文本层面的相似性</small>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    hljs.highlightAll();
+});
+</script>
 {% endblock %}

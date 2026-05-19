@@ -1,12 +1,16 @@
 {% extends "base.html" %}
 {% block title %}查重报告 - {{ assignment.title }}{% endblock %}
 {% block head_extra %}
-<script src="https://cdn.bootcdn.net/ajax/libs/echarts/5.5.0/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 {% endblock %}
 {% block content %}
 <div class="page-header">
     <a href="{{ url_for('plagiarism.index') }}">← 返回查重中心</a>
     <h1>查重报告：{{ assignment.title }}</h1>
+    {% if sim_results and current_user.role in ('teacher', 'admin') %}
+        <a href="{{ url_for('plagiarism.export_excel', assignment_id=assignment.id) }}"
+           class="btn btn-success btn-sm">导出 Excel 报告</a>
+    {% endif %}
 </div>
 
 <div class="meta-row">
@@ -22,15 +26,48 @@
 
 {% if sim_results %}
 
-<!-- Similarity Heatmap -->
-<div class="card" style="margin-top:1.5rem">
-    <h3>相似度热力图</h3>
-    <div id="heatmap" style="width:100%;height:400px"></div>
+<!-- Dashboard Cards -->
+<div class="card-grid card-grid-3" style="margin-bottom:1.5rem">
+    <div class="card" style="text-align:center">
+        <div style="font-size:2rem;font-weight:700;color:var(--primary)">{{ submissions|length }}</div>
+        <div class="muted">提交总数</div>
+    </div>
+    <div class="card" style="text-align:center">
+        <div style="font-size:2rem;font-weight:700;color:{{ 'var(--danger)' if avg_sim >= 0.6 else 'var(--warning)' if avg_sim >= 0.4 else 'var(--success)' }}">
+            {{ (avg_sim * 100)|int }}%
+        </div>
+        <div class="muted">平均相似度</div>
+    </div>
+    <div class="card" style="text-align:center">
+        <div style="font-size:2rem;font-weight:700;color:{{ 'var(--danger)' if high_risk_count > 0 else 'var(--success)' }}">
+            {{ high_risk_count }}
+        </div>
+        <div class="muted">高风险提交 (&ge;85%)</div>
+    </div>
+</div>
+
+<!-- Similarity Histogram -->
+<div class="card" style="margin-bottom:1.5rem">
+    <h3>相似度分布</h3>
+    <div id="histogram" style="width:100%;height:250px"></div>
+</div>
+
+<!-- Similarity Heatmap + Force Graph side by side -->
+<div class="card-grid" style="margin-bottom:1.5rem">
+    <div class="card">
+        <h3>相似度热力图</h3>
+        <div id="heatmap" style="width:100%;height:400px"></div>
+    </div>
+    <div class="card">
+        <h3>抄袭关系图谱</h3>
+        <div id="graph" style="width:100%;height:400px"></div>
+    </div>
 </div>
 
 <!-- Top Similar Pairs -->
 <div class="card" style="margin-top:1.5rem">
-    <h3>高相似度代码对</h3>
+    <h3>高相似度代码对 (Top {{ sim_results[:20]|length }})</h3>
+    <div style="overflow-x:auto">
     <table class="table">
         <thead>
             <tr>
@@ -46,7 +83,7 @@
             </tr>
         </thead>
         <tbody>
-        {% for r in sim_results %}
+        {% for r in sim_results[:50] %}
             <tr>
                 <td>{{ loop.index }}</td>
                 <td>{{ r.submission_a.student.display_name or r.submission_a.student.username }}
@@ -89,12 +126,13 @@
         {% endfor %}
         </tbody>
     </table>
+    </div>
 </div>
 
 <!-- Plagiarism Groups -->
 {% if groups %}
 <div class="card" style="margin-top:1.5rem">
-    <h3>抄袭关系组</h3>
+    <h3>抄袭关系链</h3>
     {% for g in groups %}
         <div style="margin-bottom:1rem;padding:0.75rem;background:#fff3e0;border-radius:4px">
             <strong>{{ g.label }}</strong><br>
@@ -110,7 +148,12 @@
 
 {% else %}
 <div class="empty-state">
-    <p>暂无相似度数据。请点击「开始查重」进行分析。</p>
+    <p>暂无相似度数据。</p>
+    {% if current_user.role in ('teacher', 'admin') %}
+    <form method="POST" action="{{ url_for('plagiarism.run_analysis', assignment_id=assignment.id) }}" style="margin-top:1rem">
+        <button type="submit" class="btn btn-primary">开始查重分析</button>
+    </form>
+    {% endif %}
 </div>
 {% endif %}
 {% endblock %}
@@ -118,39 +161,107 @@
 {% block scripts %}
 <script>
 {% if sim_results %}
-// Heatmap
 (function(){
-    var dom = document.getElementById('heatmap');
-    if (!dom) return;
-    var chart = echarts.init(dom);
-    var labels = {{ labels|safe }};
-    var data = {{ heatmap_data|safe }};
-    var option = {
-        tooltip: {
-            formatter: function(p) {
-                return labels[p.value[0]] + ' vs ' + labels[p.value[1]]
-                       + '<br>相似度: ' + (p.value[2] * 100).toFixed(0) + '%';
-            }
-        },
-        xAxis: { type: 'category', data: labels, axisLabel: { rotate: 45 } },
-        yAxis: { type: 'category', data: labels },
-        visualMap: {
-            min: 0, max: 1,
-            inRange: { color: ['#e8f5e9', '#fff9c4', '#ffcc02', '#ff9800', '#f44336'] },
-            calculable: true,
-            orient: 'horizontal',
-            left: 'center',
-            bottom: 0
-        },
-        series: [{
-            type: 'heatmap',
-            data: data,
-            label: { show: true, formatter: function(p) { return (p.value[2]*100).toFixed(0)+'%'; } },
-            emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } }
-        }]
-    };
-    chart.setOption(option);
-    window.addEventListener('resize', function(){ chart.resize(); });
+    // Histogram
+    var histDom = document.getElementById('histogram');
+    if (histDom) {
+        var histChart = echarts.init(histDom);
+        var bins = {{ histogram_bins|safe }};
+        var counts = {{ histogram_counts|safe }};
+        var colors = ['#388e3c', '#4caf50', '#ff9800', '#f57c00', '#d32f2f'];
+        var option = {
+            tooltip: { trigger: 'axis' },
+            xAxis: { type: 'category', data: bins, name: '相似度区间', axisLabel: { rotate: 30, fontSize: 10 } },
+            yAxis: { type: 'value', name: '代码对数' },
+            series: [{
+                type: 'bar', data: counts,
+                itemStyle: {
+                    color: function(p) {
+                        return colors[Math.min(p.dataIndex, colors.length - 1)];
+                    }
+                },
+                label: { show: true, position: 'top', fontSize: 11 }
+            }]
+        };
+        histChart.setOption(option);
+        window.addEventListener('resize', function(){ histChart.resize(); });
+    }
+
+    // Heatmap
+    var heatDom = document.getElementById('heatmap');
+    if (heatDom) {
+        var heatChart = echarts.init(heatDom);
+        var labels = {{ labels|safe }};
+        var data = {{ heatmap_data|safe }};
+        heatChart.setOption({
+            tooltip: {
+                formatter: function(p) {
+                    return labels[p.value[0]] + ' vs ' + labels[p.value[1]]
+                           + '<br>相似度: ' + (p.value[2] * 100).toFixed(0) + '%';
+                }
+            },
+            grid: { left: 80, right: 20, top: 20, bottom: 80 },
+            xAxis: { type: 'category', data: labels, axisLabel: { rotate: 45, fontSize: 10, interval: 0 } },
+            yAxis: { type: 'category', data: labels, axisLabel: { fontSize: 10 } },
+            visualMap: {
+                min: 0, max: 1,
+                inRange: { color: ['#e8f5e9', '#fff9c4', '#ffcc02', '#ff9800', '#f44336'] },
+                calculable: true, orient: 'horizontal', left: 'center', bottom: 0
+            },
+            series: [{
+                type: 'heatmap', data: data,
+                label: { show: data.length <= 100, formatter: function(p) { return (p.value[2]*100).toFixed(0)+'%'; }, fontSize: 9 },
+                emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } }
+            }]
+        });
+        window.addEventListener('resize', function(){ heatChart.resize(); });
+    }
+
+    // Force-directed graph
+    var graphDom = document.getElementById('graph');
+    if (graphDom) {
+        var graphChart = echarts.init(graphDom);
+        fetch("{{ url_for('plagiarism.api_graph_data', assignment_id=assignment.id) }}")
+            .then(function(r) { return r.json(); })
+            .then(function(g) {
+                // Color nodes: red if suspected plagiarism, blue otherwise
+                var linkedIds = new Set();
+                g.links.forEach(function(l) { linkedIds.add(l.source); linkedIds.add(l.target); });
+                g.nodes.forEach(function(n) {
+                    n.category = linkedIds.has(n.id) ? 1 : 0;
+                    n.symbolSize = linkedIds.has(n.id) ? 35 : 25;
+                });
+                var categories = [
+                    { name: '正常', itemStyle: { color: '#1976d2' } },
+                    { name: '疑似抄袭', itemStyle: { color: '#d32f2f' } }
+                ];
+                graphChart.setOption({
+                    tooltip: {
+                        formatter: function(p) {
+                            if (p.dataType === 'edge') {
+                                return p.data.source + ' ↔ ' + p.data.target
+                                       + '<br>相似度: ' + (p.data.value * 100).toFixed(0) + '%';
+                            }
+                            return p.name;
+                        }
+                    },
+                    legend: { data: categories.map(function(c) { return c.name; }), bottom: 0 },
+                    series: [{
+                        type: 'graph', layout: 'force', categories: categories,
+                        nodes: g.nodes, links: g.links,
+                        roam: true, draggable: true,
+                        force: { repulsion: 200, edgeLength: [80, 200] },
+                        label: { show: true, fontSize: 10, formatter: function(p) { return p.name; } },
+                        lineStyle: { curveness: 0.2, opacity: 0.6,
+                            color: 'rgba(245,124,0,0.6)',
+                            width: function(e) { return Math.max(1, e.data.value * 5); }
+                        },
+                        emphasis: { focus: 'adjacency', lineStyle: { width: 6 } }
+                    }]
+                });
+            });
+        window.addEventListener('resize', function(){ graphChart.resize(); });
+    }
 })();
 {% endif %}
 </script>

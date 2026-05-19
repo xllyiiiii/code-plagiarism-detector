@@ -16,6 +16,9 @@ def login():
         password = request.form.get('password')
         user = User.query.filter_by(username=username).first()
         if user and user.check_password(password):
+            if not getattr(user, 'is_active', True):
+                flash('该账号已被禁用，请联系管理员。')
+                return render_template('login.html')
             login_user(user)
             next_page = request.args.get('next')
             return redirect(next_page or url_for('courses.index'))

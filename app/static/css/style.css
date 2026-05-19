@@ -212,6 +212,7 @@ body {
 }
 .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; }
 .card-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.card-grid-3 { grid-template-columns: repeat(3, 1fr); }
 
 /* ---- Forms ---- */
 .form-container {
@@ -347,6 +348,49 @@ a:hover { text-decoration: underline; }
     margin-right: 0.5rem;
     color: var(--primary);
 }
+
+/* ---- Diff Table ---- */
+.diff-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: "Cascadia Code", "Fira Code", "Consolas", monospace;
+    font-size: 0.8rem;
+    line-height: 1.5;
+}
+.diff-table td { padding: 0; vertical-align: top; }
+.diff-table .line-num {
+    width: 40px;
+    min-width: 40px;
+    text-align: right;
+    padding-right: 8px;
+    color: #666;
+    background: #fafafa;
+    user-select: none;
+    border-right: 1px solid #e0e0e0;
+}
+.diff-table .line-sign {
+    width: 20px;
+    min-width: 20px;
+    text-align: center;
+    color: #999;
+    user-select: none;
+}
+.diff-table .line-code { padding-left: 8px; }
+.diff-table .line-code pre {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+.diff-table tr.diff-replace { background: #fff3e0; }
+.diff-table tr.diff-replace .line-sign { color: #f57c00; font-weight: bold; }
+.diff-table tr.diff-delete { background: #ffebee; }
+.diff-table tr.diff-delete .line-sign { color: #d32f2f; font-weight: bold; }
+.diff-table tr.diff-insert { background: #e8f5e9; }
+.diff-table tr.diff-insert .line-sign { color: #388e3c; font-weight: bold; }
+.diff-container { background: #1e1e2e; border-radius: 0 0 6px 6px; }
+.diff-container .line-code { color: #cdd6f4; }
 
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
