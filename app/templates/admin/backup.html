@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}数据备份{% endblock %}
+{% block content %}
+<div class="page-header">
+    <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline">← 返回管理后台</a>
+    <h1>数据备份</h1>
+</div>
+
+<!-- Create Backup -->
+<div class="card" style="margin-bottom:1.5rem">
+    <h3>创建备份</h3>
+    <p class="muted" style="margin-bottom:0.75rem">创建包含 SQLite 数据库和所有上传代码文件的 ZIP 压缩包。备份文件存储在服务器 <code>backups/</code> 目录下。</p>
+    <form method="POST" action="{{ url_for('admin.create_backup') }}" style="display:flex;align-items:center;gap:1rem">
+        <button type="submit" class="btn btn-primary">立即创建备份</button>
+        <small class="muted">备份可能需要几秒到几分钟，取决于文件数量</small>
+    </form>
+</div>
+
+<!-- Backup List -->
+<div class="card">
+    <h3>备份文件列表 ({{ files|length }})</h3>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>文件名</th>
+                <th>大小</th>
+                <th>创建时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for f in files %}
+            <tr>
+                <td><code>{{ f.name }}</code></td>
+                <td>{{ f.size_mb }} MB</td>
+                <td>{{ f.mtime.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+                <td>
+                    <div style="display:flex;gap:6px">
+                        <a href="{{ url_for('admin.download_backup', filename=f.name) }}" class="btn btn-sm btn-primary">下载</a>
+                        <form method="POST" action="{{ url_for('admin.delete_backup', filename=f.name) }}"
+                              onsubmit="return confirm('确认删除备份 {{ f.name }}？')">
+                            <button class="btn btn-sm btn-danger">删除</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="4" style="text-align:center;color:#999">暂无备份文件，请点击上方按钮创建。</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

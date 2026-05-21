@@ -2,10 +2,11 @@
 {% block title %}用户管理{% endblock %}
 {% block content %}
 <div class="page-header">
-    <a href="{{ url_for('admin.index') }}">← 返回管理后台</a>
+    <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline">← 返回管理后台</a>
     <h1>用户管理</h1>
 </div>
 
+<!-- Create User -->
 <div class="card" style="margin-bottom:1.5rem">
     <h3>创建用户</h3>
     <form method="POST" action="{{ url_for('admin.create_user') }}" style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:end">
@@ -37,8 +38,48 @@
     </form>
 </div>
 
+<!-- Batch Import / Export -->
+<div class="card" style="margin-bottom:1.5rem">
+    <h3>批量操作</h3>
+    <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center">
+        <form method="POST" action="{{ url_for('admin.batch_import_users') }}" enctype="multipart/form-data"
+              style="display:flex;gap:0.5rem;align-items:center;flex-wrap:wrap">
+            <label style="font-weight:500;font-size:0.9rem">批量导入：</label>
+            <input type="file" name="file" accept=".csv,.txt" style="padding:0.35rem;border:1px solid #ddd;border-radius:4px;font-size:0.85rem">
+            <button type="submit" class="btn btn-sm btn-primary">上传导入</button>
+            <small class="muted">CSV 格式：username,password,role,display_name,email（首行为标题行）</small>
+        </form>
+        <a href="{{ url_for('admin.export_users') }}" class="btn btn-sm btn-outline">导出全部用户 (CSV)</a>
+    </div>
+</div>
+
+<!-- Filter & Search -->
+<div class="card" style="margin-bottom:1.5rem">
+    <form method="GET" action="{{ url_for('admin.users') }}" style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:end">
+        <div class="form-group" style="flex:2;min-width:200px;margin:0">
+            <label>搜索</label>
+            <input type="text" name="search" value="{{ search }}" placeholder="用户名 / 显示名 / 邮箱">
+        </div>
+        <div class="form-group" style="flex:1;min-width:130px;margin:0">
+            <label>角色筛选</label>
+            <select name="role_filter">
+                <option value="">全部</option>
+                <option value="student" {% if role_filter == 'student' %}selected{% endif %}>学生</option>
+                <option value="teacher" {% if role_filter == 'teacher' %}selected{% endif %}>教师</option>
+                <option value="admin" {% if role_filter == 'admin' %}selected{% endif %}>管理员</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary" style="width:auto">筛选</button>
+        {% if search or role_filter %}
+            <a href="{{ url_for('admin.users') }}" class="btn btn-sm btn-outline" style="width:auto">清除</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- User List -->
 <div class="card">
-    <h3>用户列表 ({{ users|length }})</h3>
+    <h3>用户列表 ({{ pagination.total if pagination else users|length }})</h3>
+    <div style="overflow-x:auto">
     <table class="table">
         <thead>
             <tr>
@@ -47,6 +88,7 @@
                 <th>显示名称</th>
                 <th>角色</th>
                 <th>邮箱</th>
+                <th>状态</th>
                 <th>注册时间</th>
                 <th>操作</th>
             </tr>
@@ -65,22 +107,66 @@
                     </span>
                 </td>
                 <td>{{ u.email or '-' }}</td>
+                <td>
+                    {% if u.is_active %}
+                        <span class="badge badge-active">正常</span>
+                    {% else %}
+                        <span class="badge badge-archived">已禁用</span>
+                    {% endif %}
+                </td>
                 <td>{{ u.created_at.strftime('%Y-%m-%d') if u.created_at else '-' }}</td>
                 <td>
-                    <button class="btn btn-sm btn-outline"
-                            onclick="document.getElementById('reset-form-{{ u.id }}').style.display='block'">重置密码</button>
-                    <div id="reset-form-{{ u.id }}" style="display:none;margin-top:4px">
+                    <div style="display:flex;gap:4px;flex-wrap:wrap;align-items:center">
+                        <button class="btn btn-sm btn-outline"
+                                onclick="document.getElementById('reset-form-{{ u.id }}').style.display='block';
+                                         document.getElementById('reset-btn-{{ u.id }}').style.display='none'"
+                                id="reset-btn-{{ u.id }}">重置密码</button>
+                        <form method="POST" action="{{ url_for('admin.toggle_user', user_id=u.id) }}">
+                            {% if u.is_active %}
+                                <button class="btn btn-sm btn-outline" style="color:#d32f2f">禁用</button>
+                            {% else %}
+                                <button class="btn btn-sm btn-success">启用</button>
+                            {% endif %}
+                        </form>
+                        {% if u.id != current_user.id %}
+                        <form method="POST" action="{{ url_for('admin.delete_user', user_id=u.id) }}"
+                              onsubmit="return confirm('确认删除用户 {{ u.username }}？此操作不可恢复。')">
+                            <button class="btn btn-sm btn-danger">删除</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                    <div id="reset-form-{{ u.id }}" style="display:none;margin-top:6px">
                         <form method="POST" action="{{ url_for('admin.reset_password', user_id=u.id) }}"
                               style="display:flex;gap:4px">
                             <input type="password" name="new_password" placeholder="新密码" minlength="6" required
                                    style="width:120px;padding:0.3rem;border:1px solid #ddd;border-radius:4px;font-size:0.8rem">
                             <button type="submit" class="btn btn-sm btn-primary">确认</button>
+                            <button type="button" class="btn btn-sm btn-outline"
+                                    onclick="document.getElementById('reset-form-{{ u.id }}').style.display='none';
+                                             document.getElementById('reset-btn-{{ u.id }}').style.display='inline-block'">取消</button>
                         </form>
                     </div>
                 </td>
             </tr>
+        {% else %}
+            <tr><td colspan="8" style="text-align:center;color:#999">暂无用户</td></tr>
         {% endfor %}
         </tbody>
     </table>
+    </div>
+
+    {% if pagination and pagination.pages > 1 %}
+    <div style="display:flex;justify-content:center;gap:0.5rem;margin-top:1rem;flex-wrap:wrap;align-items:center">
+        {% if pagination.has_prev %}
+            <a href="{{ url_for('admin.users', page=pagination.prev_num, search=search, role_filter=role_filter) }}"
+               class="btn btn-sm btn-outline">上一页</a>
+        {% endif %}
+        <span style="padding:0.3rem 0.5rem">第 {{ pagination.page }} / {{ pagination.pages }} 页 (共 {{ pagination.total }} 条)</span>
+        {% if pagination.has_next %}
+            <a href="{{ url_for('admin.users', page=pagination.next_num, search=search, role_filter=role_filter) }}"
+               class="btn btn-sm btn-outline">下一页</a>
+        {% endif %}
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

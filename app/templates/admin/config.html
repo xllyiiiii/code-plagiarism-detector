@@ -2,12 +2,104 @@
 {% block title %}系统配置{% endblock %}
 {% block content %}
 <div class="page-header">
-    <a href="{{ url_for('admin.index') }}">← 返回管理后台</a>
+    <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline">← 返回管理后台</a>
     <h1>系统配置</h1>
 </div>
 
-<div class="card">
-    <h3>当前配置</h3>
+<!-- Editable Configuration -->
+<form method="POST" action="{{ url_for('admin.system_config') }}">
+<div class="card" style="margin-bottom:1.5rem">
+    <h3>查重算法权重</h3>
+    <p class="muted">各维度相似度计算的权重系数，四项之和应为 1.0。修改后对新发起的查重任务生效，已完成的报告不受影响。</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:1rem">
+        <div class="form-group" style="margin:0">
+            <label>Jaccard 子树哈希相似度</label>
+            <input type="number" name="weight_jaccard" value="{{ config.get('weight_jaccard', {}).get('value', '0.30') }}"
+                   step="0.01" min="0" max="1">
+            <small class="muted">HashSet 交集/并集，对重命名完全不敏感</small>
+        </div>
+        <div class="form-group" style="margin:0">
+            <label>树编辑距离相似度 (APTED)</label>
+            <input type="number" name="weight_tree_edit" value="{{ config.get('weight_tree_edit', {}).get('value', '0.40') }}"
+                   step="0.01" min="0" max="1">
+            <small class="muted">精度最高，可输出具体编辑操作序列</small>
+        </div>
+        <div class="form-group" style="margin:0">
+            <label>语义哈希相似度</label>
+            <input type="number" name="weight_semantic" value="{{ config.get('weight_semantic', {}).get('value', '0.20') }}"
+                   step="0.01" min="0" max="1">
+            <small class="muted">控制流图等价检测 (初期可设为 0)</small>
+        </div>
+        <div class="form-group" style="margin:0">
+            <label>N-gram Token 重叠度</label>
+            <input type="number" name="weight_ngram" value="{{ config.get('weight_ngram', {}).get('value', '0.10') }}"
+                   step="0.01" min="0" max="1">
+            <small class="muted">辅助维度，捕获直接文本拷贝</small>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom:1.5rem">
+    <h3>查重与文件设置</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:1rem">
+        <div class="form-group" style="margin:0">
+            <label>默认相似度阈值</label>
+            <input type="number" name="similarity_threshold_default"
+                   value="{{ config.get('similarity_threshold_default', {}).get('value', '0.70') }}"
+                   step="0.01" min="0" max="1">
+            <small class="muted">超过此阈值的代码对将被标记 (0-1)</small>
+        </div>
+        <div class="form-group" style="margin:0">
+            <label>允许的文件扩展名</label>
+            <input type="text" name="allowed_extensions"
+                   value="{{ config.get('allowed_extensions', {}).get('value', 'py,java,c,cpp,js') }}">
+            <small class="muted">逗号分隔，不含点号</small>
+        </div>
+        <div class="form-group" style="margin:0">
+            <label>最大文件大小 (MB)</label>
+            <input type="number" name="max_file_size_mb"
+                   value="{{ config.get('max_file_size_mb', {}).get('value', '2') }}"
+                   step="1" min="1" max="50">
+            <small class="muted">单个代码文件上传上限</small>
+        </div>
+        <div class="form-group" style="margin:0">
+            <label>分析器超时 (秒)</label>
+            <input type="number" name="parser_timeout_seconds"
+                   value="{{ config.get('parser_timeout_seconds', {}).get('value', '30') }}"
+                   step="5" min="5" max="300">
+            <small class="muted">单文件 AST 解析超时时间</small>
+        </div>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom:1.5rem">
+    <h3>任务调度设置</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(200px, 1fr));gap:1rem">
+        <div class="form-group" style="margin:0">
+            <label>最大并发任务数</label>
+            <input type="number" name="max_concurrent_tasks"
+                   value="{{ config.get('max_concurrent_tasks', {}).get('value', '2') }}"
+                   step="1" min="1" max="8">
+            <small class="muted">同时运行的查重任务数 (控制 CPU 占用)</small>
+        </div>
+        <div class="form-group" style="margin:0">
+            <label>支持的语言</label>
+            <input type="text" name="supported_languages"
+                   value="{{ config.get('supported_languages', {}).get('value', 'python,java,c,cpp,javascript') }}">
+            <small class="muted">逗号分隔：python, java, c, cpp, javascript</small>
+        </div>
+    </div>
+</div>
+
+<div style="margin-bottom:2rem">
+    <button type="submit" style="width:auto;padding:0.7rem 2rem" class="btn btn-primary">保存配置</button>
+    <span class="muted" style="margin-left:1rem">更改将在下一次查重任务启动时生效</span>
+</div>
+</form>
+
+<!-- Static Config Info -->
+<div class="card" style="margin-bottom:1.5rem">
+    <h3>不可编辑的运行时配置</h3>
     <table class="table">
         <thead>
             <tr><th>配置项</th><th>值</th><th>说明</th></tr>
@@ -15,47 +107,33 @@
         <tbody>
             <tr>
                 <td><strong>SECRET_KEY</strong></td>
-                <td><code>{{ config.SECRET_KEY }}</code></td>
-                <td class="muted">应用密钥（用于 session 签名和 CSRF token）</td>
+                <td><code>{{ static_config.SECRET_KEY }}</code></td>
+                <td class="muted">应用密钥（通过环境变量设置，重启生效）</td>
             </tr>
             <tr>
                 <td><strong>DATABASE_URI</strong></td>
-                <td><code style="word-break:break-all">{{ config.SQLALCHEMY_DATABASE_URI }}</code></td>
-                <td class="muted">数据库连接地址</td>
+                <td><code style="word-break:break-all">{{ static_config.SQLALCHEMY_DATABASE_URI }}</code></td>
+                <td class="muted">数据库连接地址（通过环境变量 DATABASE_URL 设置）</td>
             </tr>
             <tr>
                 <td><strong>UPLOAD_FOLDER</strong></td>
-                <td><code>{{ config.UPLOAD_FOLDER }}</code></td>
-                <td class="muted">代码文件上传目录</td>
-            </tr>
-            <tr>
-                <td><strong>MAX_CONTENT_LENGTH</strong></td>
-                <td><code>{{ config.MAX_CONTENT_LENGTH }}</code></td>
-                <td class="muted">单文件上传大小上限</td>
-            </tr>
-            <tr>
-                <td><strong>ALLOWED_EXTENSIONS</strong></td>
-                <td><code>{{ config.ALLOWED_EXTENSIONS }}</code></td>
-                <td class="muted">允许上传的文件扩展名</td>
-            </tr>
-            <tr>
-                <td><strong>SIMILARITY_THRESHOLD</strong></td>
-                <td><code>{{ config.SIMILARITY_THRESHOLD_DEFAULT }}</code></td>
-                <td class="muted">默认相似度阈值</td>
+                <td><code>{{ static_config.UPLOAD_FOLDER }}</code></td>
+                <td class="muted">代码文件上传目录（通过环境变量 UPLOAD_FOLDER 设置）</td>
             </tr>
         </tbody>
     </table>
 </div>
 
-<div class="card" style="margin-top:1.5rem">
-    <h3>修改配置</h3>
-    <p class="muted">通过环境变量或 <code>app/config.py</code> 修改配置。更改后需重启应用生效。</p>
+<div class="card">
+    <h3>环境变量配置说明</h3>
     <div style="background:#1e1e2e;color:#cdd6f4;padding:1rem;border-radius:6px;font-family:monospace;font-size:0.85rem">
         <div># Linux / macOS</div>
         <div>export SECRET_KEY=your-random-secret-key</div>
         <div>export UPLOAD_FOLDER=/data/uploads</div>
+        <div>export DATABASE_URL=postgresql://user:pass@host/dbname</div>
         <div style="margin-top:0.5rem"># Windows PowerShell</div>
         <div>$env:SECRET_KEY = "your-random-secret-key"</div>
+        <div>$env:UPLOAD_FOLDER = "D:\data\uploads"</div>
     </div>
 </div>
 {% endblock %}

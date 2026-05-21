@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+{% block title %}任务监控{% endblock %}
+{% block content %}
+<div class="page-header">
+    <a href="{{ url_for('admin.index') }}" class="btn btn-sm btn-outline">← 返回管理后台</a>
+    <h1>任务监控</h1>
+</div>
+
+<!-- Filter -->
+<div class="card" style="margin-bottom:1.5rem">
+    <form method="GET" action="{{ url_for('admin.tasks') }}" style="display:flex;gap:0.75rem;flex-wrap:wrap;align-items:end">
+        <div class="form-group" style="flex:1;min-width:150px;margin:0">
+            <label>状态筛选</label>
+            <select name="status">
+                <option value="">全部</option>
+                <option value="pending" {% if status_filter == 'pending' %}selected{% endif %}>等待中</option>
+                <option value="running" {% if status_filter == 'running' %}selected{% endif %}>运行中</option>
+                <option value="completed" {% if status_filter == 'completed' %}selected{% endif %}>已完成</option>
+                <option value="failed" {% if status_filter == 'failed' %}selected{% endif %}>失败</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-sm btn-primary" style="width:auto">筛选</button>
+        {% if status_filter %}
+            <a href="{{ url_for('admin.tasks') }}" class="btn btn-sm btn-outline" style="width:auto">清除</a>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Task List -->
+<div class="card">
+    <h3>分析任务列表 ({{ pagination.total if pagination else tasks|length }})</h3>
+    <div style="overflow-x:auto">
+    <table class="table">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>作业 ID</th>
+                <th>状态</th>
+                <th>进度</th>
+                <th>开始时间</th>
+                <th>完成时间</th>
+                <th>耗时</th>
+                <th>错误信息</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for task in tasks %}
+            <tr>
+                <td>{{ task.id }}</td>
+                <td>
+                    <a href="{{ url_for('assignments.detail', assignment_id=task.assignment_id) }}">
+                        #{{ task.assignment_id }}
+                    </a>
+                </td>
+                <td>
+                    {% if task.status == 'pending' %}
+                        <span class="badge" style="background:#fff3e0;color:#e65100">等待中</span>
+                    {% elif task.status == 'running' %}
+                        <span class="badge" style="background:#e3f2fd;color:#1565c0">运行中</span>
+                    {% elif task.status == 'completed' %}
+                        <span class="badge badge-active">已完成</span>
+                    {% elif task.status == 'failed' %}
+                        <span class="badge" style="background:#ffebee;color:#c62828">失败</span>
+                    {% else %}
+                        <span class="badge badge-archived">{{ task.status }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="display:flex;align-items:center;gap:0.5rem">
+                        <progress value="{{ task.processed_pairs }}" max="{{ task.total_pairs or 1 }}"
+                                  style="width:80px;height:6px;border-radius:3px">
+                        </progress>
+                        <small>{{ task.processed_pairs }}/{{ task.total_pairs or '-' }} ({{ task.progress_pct() }}%)</small>
+                    </div>
+                </td>
+                <td>{{ task.started_at.strftime('%m-%d %H:%M') if task.started_at else '-' }}</td>
+                <td>{{ task.completed_at.strftime('%m-%d %H:%M') if task.completed_at else '-' }}</td>
+                <td>
+                    {% if task.started_at and task.completed_at %}
+                        {% set duration = (task.completed_at - task.started_at).total_seconds() %}
+                        {% if duration < 60 %}
+                            {{ duration|int }}秒
+                        {% elif duration < 3600 %}
+                            {{ (duration / 60)|round(1) }}分钟
+                        {% else %}
+                            {{ (duration / 3600)|round(1) }}小时
+                        {% endif %}
+                    {% else %}
+                        -
+                    {% endif %}
+                </td>
+                <td>
+                    {% if task.error_message %}
+                        <small class="text-danger" title="{{ task.error_message }}">
+                            {{ task.error_message[:50] }}{% if task.error_message|length > 50 %}...{% endif %}
+                        </small>
+                    {% else %}
+                        <span class="muted">-</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="display:flex;gap:4px">
+                        {% if task.status in ('failed', 'completed') %}
+                        <form method="POST" action="{{ url_for('admin.retry_task', task_id=task.id) }}">
+                            <button class="btn btn-sm btn-outline">重试</button>
+                        </form>
+                        {% endif %}
+                        <form method="POST" action="{{ url_for('admin.delete_task', task_id=task.id) }}"
+                              onsubmit="return confirm('确认删除任务 #{{ task.id }}？')">
+                            <button class="btn btn-sm btn-danger">删除</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+        {% else %}
+            <tr><td colspan="9" style="text-align:center;color:#999">暂无分析任务</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+    {% if pagination and pagination.pages > 1 %}
+    <div style="display:flex;justify-content:center;gap:0.5rem;margin-top:1rem;flex-wrap:wrap;align-items:center">
+        {% if pagination.has_prev %}
+            <a href="{{ url_for('admin.tasks', page=pagination.prev_num, status=status_filter) }}"
+               class="btn btn-sm btn-outline">上一页</a>
+        {% endif %}
+        <span style="padding:0.3rem 0.5rem">第 {{ pagination.page }} / {{ pagination.pages }} 页 (共 {{ pagination.total }} 条)</span>
+        {% if pagination.has_next %}
+            <a href="{{ url_for('admin.tasks', page=pagination.next_num, status=status_filter) }}"
+               class="btn btn-sm btn-outline">下一页</a>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

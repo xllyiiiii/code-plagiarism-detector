@@ -8,7 +8,7 @@
     <h1>管理后台</h1>
 </div>
 
-<!-- Stats Cards -->
+<!-- Stats Cards Row 1 -->
 <div class="card-grid card-grid-3" style="margin-bottom:1.5rem">
     <div class="card" style="text-align:center">
         <div style="font-size:2.2rem;font-weight:700;color:var(--primary)">{{ stats.user_count }}</div>
@@ -25,6 +25,7 @@
     </div>
 </div>
 
+<!-- Stats Cards Row 2 -->
 <div class="card-grid" style="margin-bottom:1.5rem">
     <div class="card" style="text-align:center">
         <div style="font-size:2.2rem;font-weight:700;color:var(--warning)">{{ stats.analysis_count }}</div>
@@ -40,20 +41,44 @@
     </div>
 </div>
 
+<!-- Task Status Row -->
+<div class="card-grid" style="margin-bottom:1.5rem">
+    <div class="card" style="text-align:center">
+        <div style="font-size:1.8rem;font-weight:700;color:#1565c0">{{ stats.task_running }}</div>
+        <div class="muted">运行中任务</div>
+    </div>
+    <div class="card" style="text-align:center">
+        <div style="font-size:1.8rem;font-weight:700;color:#e65100">{{ stats.task_pending }}</div>
+        <div class="muted">等待中任务</div>
+    </div>
+    <div class="card" style="text-align:center">
+        <div style="font-size:1.8rem;font-weight:700;color:#c62828">{{ stats.task_failed }}</div>
+        <div class="muted">失败任务</div>
+    </div>
+</div>
+
 <!-- Quick Links -->
 <div class="card" style="margin-bottom:1.5rem">
     <h3>快捷操作</h3>
     <div style="display:flex;gap:0.75rem;flex-wrap:wrap">
         <a href="{{ url_for('admin.users') }}" class="btn btn-primary">用户管理</a>
+        <a href="{{ url_for('admin.tasks') }}" class="btn btn-primary">任务监控</a>
         <a href="{{ url_for('admin.audit_logs') }}" class="btn btn-outline">审计日志</a>
         <a href="{{ url_for('admin.system_config') }}" class="btn btn-outline">系统配置</a>
+        <a href="{{ url_for('admin.backup') }}" class="btn btn-outline">数据备份</a>
     </div>
 </div>
 
-<!-- Similarity Distribution -->
-<div class="card" style="margin-bottom:1.5rem">
-    <h3>全局相似度分布</h3>
-    <div id="global-dist" style="width:100%;height:250px"></div>
+<!-- Charts Row -->
+<div class="card-grid" style="margin-bottom:1.5rem">
+    <div class="card">
+        <h3>全局相似度分布</h3>
+        <div id="global-dist" style="width:100%;height:280px"></div>
+    </div>
+    <div class="card">
+        <h3>近 7 天提交趋势</h3>
+        <div id="submission-trend" style="width:100%;height:280px"></div>
+    </div>
 </div>
 
 <!-- Recent Audit Logs -->
@@ -83,27 +108,48 @@
 {% block scripts %}
 <script>
 (function(){
-    var dom = document.getElementById('global-dist');
-    if (!dom) return;
-    var chart = echarts.init(dom);
     fetch("{{ url_for('admin.api_stats') }}")
         .then(function(r) { return r.json(); })
         .then(function(data) {
-            chart.setOption({
-                tooltip: { trigger: 'axis' },
-                xAxis: { type: 'category', data: ['0-20%', '20-40%', '40-60%', '60-80%', '80-100%'],
-                         name: '相似度区间' },
-                yAxis: { type: 'value', name: '记录数' },
-                series: [{
-                    type: 'bar', data: data.similarity_distribution,
-                    itemStyle: { color: function(p) {
-                        return ['#388e3c','#4caf50','#ff9800','#f57c00','#d32f2f'][p.dataIndex];
-                    }},
-                    label: { show: true, position: 'top' }
-                }]
-            });
+            // Chart 1: Similarity Distribution
+            var dom1 = document.getElementById('global-dist');
+            if (dom1) {
+                var chart1 = echarts.init(dom1);
+                chart1.setOption({
+                    tooltip: { trigger: 'axis' },
+                    xAxis: { type: 'category', data: ['0-20%', '20-40%', '40-60%', '60-80%', '80-100%'],
+                             name: '相似度区间' },
+                    yAxis: { type: 'value', name: '记录数' },
+                    series: [{
+                        type: 'bar', data: data.similarity_distribution,
+                        itemStyle: { color: function(p) {
+                            return ['#388e3c','#4caf50','#ff9800','#f57c00','#d32f2f'][p.dataIndex];
+                        }},
+                        label: { show: true, position: 'top' }
+                    }]
+                });
+                window.addEventListener('resize', function(){ chart1.resize(); });
+            }
+
+            // Chart 2: Submission Trend
+            var dom2 = document.getElementById('submission-trend');
+            if (dom2) {
+                var chart2 = echarts.init(dom2);
+                chart2.setOption({
+                    tooltip: { trigger: 'axis' },
+                    xAxis: { type: 'category', data: data.daily_labels, name: '日期' },
+                    yAxis: { type: 'value', name: '提交数', minInterval: 1 },
+                    series: [{
+                        type: 'line', data: data.daily_counts,
+                        smooth: true,
+                        lineStyle: { color: '#1976d2', width: 2 },
+                        areaStyle: { color: 'rgba(25,118,210,0.1)' },
+                        itemStyle: { color: '#1976d2' }
+                    }]
+                });
+                window.addEventListener('resize', function(){ chart2.resize(); });
+            }
         });
-    window.addEventListener('resize', function(){ chart.resize(); });
 })();
 </script>
 {% endblock %}

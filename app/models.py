@@ -257,6 +257,48 @@ class AnalysisTask(db.Model):
 
 
 # ============================================================
+# 系统配置（管理员可编辑）
+# ============================================================
+
+class SystemConfig(db.Model):
+    __tablename__ = 'system_config'
+
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    value = db.Column(db.Text, nullable=False)
+    description = db.Column(db.String(256))
+    updated_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
+    updated_by = db.Column(db.Integer, db.ForeignKey('users.id'))
+
+    updater = db.relationship('User')
+
+    @staticmethod
+    def get(key, default=None):
+        entry = SystemConfig.query.filter_by(key=key).first()
+        return entry.value if entry else default
+
+    @staticmethod
+    def set(key, value, description=None, updated_by=None):
+        entry = SystemConfig.query.filter_by(key=key).first()
+        if entry:
+            entry.value = str(value)
+            entry.updated_at = datetime.datetime.utcnow()
+            if updated_by:
+                entry.updated_by = updated_by
+            if description:
+                entry.description = description
+        else:
+            entry = SystemConfig(key=key, value=str(value),
+                                 description=description, updated_by=updated_by)
+            db.session.add(entry)
+        db.session.commit()
+        return entry
+
+    def __repr__(self):
+        return f'<SystemConfig {self.key}={self.value}>'
+
+
+# ============================================================
 # 审计日志
 # ============================================================
 
