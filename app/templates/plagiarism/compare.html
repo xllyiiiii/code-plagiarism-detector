@@ -61,7 +61,7 @@
     </div>
 </div>
 
-{% if sim.fragments.count() > 0 %}
+{% if sim.fragments|length > 0 %}
 <div class="card" style="margin-top:1.5rem">
     <h3>相似片段</h3>
     {% for frag in sim.fragments %}
