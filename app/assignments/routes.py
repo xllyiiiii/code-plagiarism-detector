@@ -12,10 +12,11 @@ from app.utils.decorators import role_required
 assignments_bp = Blueprint('assignments', __name__)
 
 
-ALLOWED_EXTENSIONS = {'py', 'java', 'c', 'cpp', 'js'}
+ALLOWED_EXTENSIONS = {'py', 'java', 'c', 'cpp', 'js', 'txt', 'md', 'docx', 'pdf'}
 EXT_TO_LANG = {
     'py': 'python', 'java': 'java', 'c': 'c',
-    'cpp': 'cpp', 'js': 'javascript'
+    'cpp': 'cpp', 'js': 'javascript',
+    'txt': 'txt', 'md': 'md', 'docx': 'docx', 'pdf': 'pdf',
 }
 
 
@@ -81,7 +82,7 @@ def submit(assignment_id):
         return redirect(url_for('assignments.detail', assignment_id=assignment.id))
 
     if not _allowed_file(file.filename):
-        flash('不支持的文件类型。允许的类型：py, java, c, cpp, js')
+        flash('不支持的文件类型。允许的类型：py, java, c, cpp, js, txt, md, docx, pdf')
         return redirect(url_for('assignments.detail', assignment_id=assignment.id))
 
     ext = file.filename.rsplit('.', 1)[1].lower()

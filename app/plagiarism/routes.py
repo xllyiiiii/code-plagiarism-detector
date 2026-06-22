@@ -19,6 +19,9 @@ from app.plagiarism.ast_parser import extract_features
 from app.plagiarism.similarity import compute_similarity, batch_compare
 from app.plagiarism.code_analyzer import analyze_code
 
+CODE_LANGS = {'python', 'java', 'c', 'cpp', 'javascript'}
+TEXT_LANGS = {'txt', 'md', 'docx', 'pdf'}
+
 plagiarism_bp = Blueprint('plagiarism', __name__)
 
 
@@ -75,11 +78,19 @@ def run_analysis(assignment_id):
     db.session.commit()
 
     try:
-        # 1. Parse all submissions
+        # 1. Parse all submissions (branch by content type)
         parsed = []
         for sub in submissions:
             try:
-                features = extract_features(sub.file_path, sub.language or 'python')
+                lang = sub.language or 'python'
+                if lang in CODE_LANGS:
+                    features = extract_features(sub.file_path, lang)
+                elif lang in TEXT_LANGS:
+                    from app.plagiarism.text_parser import extract_text_features
+                    features = extract_text_features(sub.file_path, lang)
+                else:
+                    print(f'[WARN] Unknown language {lang} for submission {sub.id}')
+                    continue
                 sub.ast_data = features
                 parsed.append((sub.id, features))
             except Exception as e:
@@ -237,29 +248,39 @@ def report(assignment_id):
 @plagiarism_bp.route('/compare/<int:result_id>')
 @login_required
 def compare_code(result_id):
-    """双栏代码对比视图 —— 含逐行差异标注。"""
+    """双栏对比视图 —— 含逐行差异标注（代码+文本）。"""
     sim = SimilarityResult.query.get_or_404(result_id)
+    lang_a = sim.submission_a.language or 'python'
+    lang_b = sim.submission_b.language or 'python'
+    is_text = (lang_a in TEXT_LANGS and lang_b in TEXT_LANGS)
 
-    def read_code(submission):
-        try:
-            with open(submission.file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                return f.read()
-        except Exception:
-            return '[无法读取文件]'
+    def read_content(submission):
+        if is_text:
+            from app.plagiarism.text_parser import extract_text
+            try:
+                return extract_text(submission.file_path, submission.language or 'txt')
+            except Exception:
+                return '[无法读取文件]'
+        else:
+            try:
+                with open(submission.file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    return f.read()
+            except Exception:
+                return '[无法读取文件]'
 
-    code_a = read_code(sim.submission_a)
-    code_b = read_code(sim.submission_b)
-    lang = (sim.submission_a.language or 'python')
+    content_a = read_content(sim.submission_a)
+    content_b = read_content(sim.submission_b)
+    lang = lang_a
 
     # Map language names to highlight.js classes
     lang_map = {'python': 'python', 'java': 'java', 'c': 'c', 'cpp': 'cpp',
                 'javascript': 'javascript', 'js': 'javascript'}
-    hl_lang = lang_map.get(lang, 'plaintext')
+    hl_lang = 'plaintext' if is_text else lang_map.get(lang, 'plaintext')
 
     # Compute line-level diff
     import difflib
-    lines_a_raw = code_a.splitlines()
-    lines_b_raw = code_b.splitlines()
+    lines_a_raw = content_a.splitlines()
+    lines_b_raw = content_b.splitlines()
     sm = difflib.SequenceMatcher(None, lines_a_raw, lines_b_raw)
     opcodes = sm.get_opcodes()
 
@@ -281,17 +302,38 @@ def compare_code(result_id):
             for k in range(i1, i2):
                 lines_a.append({'num': k + 1, 'text': lines_a_raw[k], 'css_class': 'diff-delete', 'sign': '-'})
             for k in range(j1, j2):
-                pass  # no corresponding lines in B (but we keep empty placeholders for alignment)
+                pass
         elif tag == 'insert':
             for k in range(i1, i2):
                 pass
             for k in range(j1, j2):
                 lines_b.append({'num': k + 1, 'text': lines_b_raw[k], 'css_class': 'diff-insert', 'sign': '+'})
 
+    # Labels for similarity components
+    if is_text:
+        metric_labels = {
+            'metric1': '词汇 Shingle Jaccard 相似度',
+            'metric1_sub': '对词汇替换不敏感',
+            'metric2': '句子 LCS 结构相似度',
+            'metric2_sub': '捕获段落结构的相似性',
+            'metric3': '词语 N-gram 相似度',
+            'metric3_sub': '捕获局部文本的相似性',
+        }
+    else:
+        metric_labels = {
+            'metric1': 'AST 子树 Jaccard 相似度',
+            'metric1_sub': '对重命名完全不敏感',
+            'metric2': '树编辑距离相似度',
+            'metric2_sub': '捕获结构层面的相似性',
+            'metric3': 'Token N-gram 相似度',
+            'metric3_sub': '捕获文本层面的相似性',
+        }
+
     # Log audit
+    action = 'view_text_compare' if is_text else 'view_code_compare'
     log = AuditLog(
         user_id=current_user.id,
-        action='view_code_compare',
+        action=action,
         target_type='similarity_result',
         target_id=result_id,
         ip_address=request.remote_addr,
@@ -300,9 +342,11 @@ def compare_code(result_id):
     db.session.add(log)
     db.session.commit()
 
-    return render_template('plagiarism/compare.html', sim=sim,
+    template = 'plagiarism/compare_text.html' if is_text else 'plagiarism/compare.html'
+    return render_template(template, sim=sim,
                            lines_a=lines_a, lines_b=lines_b,
-                           lang=hl_lang)
+                           lang=hl_lang, metric_labels=metric_labels,
+                           is_text=is_text)
 
 
 @plagiarism_bp.route('/review/<int:result_id>', methods=['POST'])
@@ -371,13 +415,18 @@ def my_report():
     submissions = current_user.submissions.order_by(
         Submission.submitted_at.desc()).all()
 
-    # Analyze each submission
+    # Analyze each submission (code only; text gets placeholder)
     analyzed = []
     for sub in submissions:
-        try:
-            report = analyze_code(sub.file_path, sub.language or 'python')
-        except Exception:
-            report = {'score': None, 'grade': 'N/A', 'issues': [], 'suggestions': []}
+        lang = sub.language or 'python'
+        if lang in TEXT_LANGS:
+            report = {'score': None, 'grade': 'N/A', 'issues': [],
+                       'suggestions': ['文本文件不支持代码质量分析。'], 'total_lines': 0}
+        else:
+            try:
+                report = analyze_code(sub.file_path, lang)
+            except Exception:
+                report = {'score': None, 'grade': 'N/A', 'issues': [], 'suggestions': []}
         analyzed.append({
             'submission': sub,
             'report': report,
@@ -398,12 +447,15 @@ def my_report():
     sim_trends = []
     for sub in sorted(submissions, key=lambda s: s.submitted_at):
         dates.append(sub.submitted_at.strftime('%m-%d'))
-        # Get quality score
-        try:
-            r = analyze_code(sub.file_path, sub.language or 'python')
-            scores.append(r['score'])
-        except Exception:
-            scores.append(0)
+        lang = sub.language or 'python'
+        if lang in TEXT_LANGS:
+            scores.append(None)
+        else:
+            try:
+                r = analyze_code(sub.file_path, lang)
+                scores.append(r['score'])
+            except Exception:
+                scores.append(0)
         # Get max similarity for this submission
         max_sim = 0
         for sr in sim_results:
@@ -431,36 +483,49 @@ def code_review(submission_id):
         flash('无权查看此报告。')
         return redirect(url_for('plagiarism.my_report'))
 
-    try:
-        report = analyze_code(sub.file_path, sub.language or 'python')
-    except Exception as e:
-        flash(f'代码分析失败：{e}')
-        return redirect(request.referrer or url_for('plagiarism.index'))
+    lang = sub.language or 'python'
+    if lang in TEXT_LANGS:
+        report = {'score': None, 'grade': 'N/A', 'issues': [],
+                   'suggestions': ['文本文件不支持代码质量分析。'], 'total_lines': 0}
+        sim_pairs = SimilarityResult.query.filter(
+            (SimilarityResult.submission_a_id == submission_id) |
+            (SimilarityResult.submission_b_id == submission_id)
+        ).order_by(SimilarityResult.final_similarity.desc()).all()
+        refactor_suggestions = []
+        from app.plagiarism.text_parser import extract_text
+        try:
+            source_code = extract_text(sub.file_path, lang)
+        except Exception:
+            source_code = '[无法读取]'
+    else:
+        try:
+            report = analyze_code(sub.file_path, lang)
+        except Exception as e:
+            flash(f'代码分析失败：{e}')
+            return redirect(request.referrer or url_for('plagiarism.index'))
 
-    # Get similar submissions for context
-    sim_pairs = SimilarityResult.query.filter(
-        (SimilarityResult.submission_a_id == submission_id) |
-        (SimilarityResult.submission_b_id == submission_id)
-    ).order_by(SimilarityResult.final_similarity.desc()).all()
+        sim_pairs = SimilarityResult.query.filter(
+            (SimilarityResult.submission_a_id == submission_id) |
+            (SimilarityResult.submission_b_id == submission_id)
+        ).order_by(SimilarityResult.final_similarity.desc()).all()
 
-    # Generate pair-specific refactoring suggestions
-    refactor_suggestions = []
-    for sr in sim_pairs:
-        other_sub = sr.submission_b if sr.submission_a_id == submission_id else sr.submission_a
-        suggestions = _generate_pair_suggestions(sr, sub, other_sub)
-        if suggestions:
-            refactor_suggestions.append({
-                'similarity_result': sr,
-                'other_student': other_sub.student.display_name or other_sub.student.username,
-                'other_file': other_sub.file_name,
-                'suggestions': suggestions,
-            })
+        refactor_suggestions = []
+        for sr in sim_pairs:
+            other_sub = sr.submission_b if sr.submission_a_id == submission_id else sr.submission_a
+            suggestions = _generate_pair_suggestions(sr, sub, other_sub)
+            if suggestions:
+                refactor_suggestions.append({
+                    'similarity_result': sr,
+                    'other_student': other_sub.student.display_name or other_sub.student.username,
+                    'other_file': other_sub.file_name,
+                    'suggestions': suggestions,
+                })
 
-    try:
-        with open(sub.file_path, 'r', encoding='utf-8', errors='ignore') as f:
-            source_code = f.read()
-    except Exception:
-        source_code = '[无法读取]'
+        try:
+            with open(sub.file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                source_code = f.read()
+        except Exception:
+            source_code = '[无法读取]'
 
     return render_template('plagiarism/code_review.html',
                            submission=sub,
@@ -556,7 +621,7 @@ def export_excel(assignment_id):
     green_font = Font(color='388E3C', bold=True)
 
     headers = ['序号', '学生 A', '文件 A', '学生 B', '文件 B',
-               'Jaccard相似度', '树编辑相似度', 'N-gram相似度', '综合相似度',
+               'Jaccard相似度', '结构相似度', 'N-gram相似度', '综合相似度',
                '复核状态']
     for col, h in enumerate(headers, 1):
         cell = ws.cell(row=1, column=col, value=h)

@@ -1,4 +1,4 @@
-"""相似度计算引擎 —— 多维度量化两份代码的相似程度。"""
+"""相似度计算引擎 —— 多维度量化两份代码/文本的相似程度。"""
 
 
 def jaccard_similarity(set_a, set_b):
@@ -93,19 +93,18 @@ def tree_edit_similarity(ast_a, ast_b):
 
 def compute_similarity(features_a, features_b):
     """
-    综合计算两份代码的相似度。
+    综合计算两份代码或文本的相似度。
 
-    Args:
-        features_a, features_b: extract_features() 返回的字典
-
-    Returns:
-        dict: {
-            'jaccard': float,
-            'tree_edit': float,
-            'ngram': float,
-            'final': float,         # 加权综合得分
-        }
+    根据 content_type 自动分发到代码管线或文本管线。
     """
+    if features_a.get('content_type') == 'text' and features_b.get('content_type') == 'text':
+        return _compute_text_similarity(features_a, features_b)
+
+    # 类型不匹配（不应发生，batch_compare 已分区）
+    if features_a.get('content_type') != features_b.get('content_type'):
+        return {'jaccard': 0.0, 'tree_edit': 0.0, 'ngram': 0.0, 'final': 0.0}
+
+    # 代码管线（原有逻辑）
     jaccard = jaccard_similarity(
         features_a.get('subtree_hashes', []),
         features_b.get('subtree_hashes', [])
@@ -121,7 +120,6 @@ def compute_similarity(features_a, features_b):
         features_b.get('tokens', [])
     )
 
-    # 综合加权（初期语义哈希暂未启用，权重重新分配）
     final = 0.40 * tree_edit + 0.35 * jaccard + 0.25 * ngram
 
     return {
@@ -134,7 +132,7 @@ def compute_similarity(features_a, features_b):
 
 def batch_compare(submissions, threshold=0.70):
     """
-    对一组提交进行两两比对，返回高相似度对。
+    对一组提交进行两两比对。代码和文本分开比较，不交叉。
 
     Args:
         submissions: list of (submission_id, features_dict)
@@ -143,17 +141,75 @@ def batch_compare(submissions, threshold=0.70):
     Returns:
         list of (sub_a_id, sub_b_id, scores_dict)
     """
-    results = []
-    n = len(submissions)
+    code_subs = [(sid, f) for sid, f in submissions
+                 if f.get('content_type') != 'text']
+    text_subs = [(sid, f) for sid, f in submissions
+                 if f.get('content_type') == 'text']
 
-    for i in range(n):
-        for j in range(i + 1, n):
-            id_a, feat_a = submissions[i]
-            id_b, feat_b = submissions[j]
-            scores = compute_similarity(feat_a, feat_b)
+    def _pairwise(group):
+        results = []
+        n = len(group)
+        for i in range(n):
+            for j in range(i + 1, n):
+                id_a, feat_a = group[i]
+                id_b, feat_b = group[j]
+                scores = compute_similarity(feat_a, feat_b)
+                if scores['final'] >= threshold:
+                    results.append((id_a, id_b, scores))
+        return results
 
-            if scores['final'] >= threshold:
-                results.append((id_a, id_b, scores))
-
+    results = _pairwise(code_subs) + _pairwise(text_subs)
     results.sort(key=lambda x: x[2]['final'], reverse=True)
     return results
+
+
+# ================================================================
+# 文本相似度函数
+# ================================================================
+
+
+def _text_lcs_similarity(sentences_a, sentences_b):
+    """句子级最长公共子序列相似度。归一化后返回 0~1。"""
+    if not sentences_a and not sentences_b:
+        return 1.0
+    m, n = len(sentences_a), len(sentences_b)
+    dp = [[0] * (n + 1) for _ in range(m + 1)]
+    for i in range(1, m + 1):
+        for j in range(1, n + 1):
+            if sentences_a[i - 1] == sentences_b[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            else:
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+    lcs_len = dp[m][n]
+    return lcs_len / max(m, n) if max(m, n) > 0 else 0.0
+
+
+def _compute_text_similarity(features_a, features_b):
+    """文本版相似度计算。权重与代码版一致。
+
+    35% Jaccard（词 shingle 重叠）+ 40% LCS（句子结构）+ 25% N-gram（局部词语重叠）
+    """
+    jaccard = jaccard_similarity(
+        features_a.get('subtree_hashes', []),
+        features_b.get('subtree_hashes', [])
+    )
+
+    lcs = _text_lcs_similarity(
+        features_a.get('sentences', []),
+        features_b.get('sentences', [])
+    )
+
+    ngram = ngram_similarity(
+        features_a.get('tokens', []),
+        features_b.get('tokens', []),
+        n=3
+    )
+
+    final = 0.40 * lcs + 0.35 * jaccard + 0.25 * ngram
+
+    return {
+        'jaccard': round(jaccard, 4),
+        'tree_edit': round(lcs, 4),
+        'ngram': round(ngram, 4),
+        'final': round(final, 4),
+    }

@@ -66,16 +66,17 @@
 
 <!-- Top Similar Pairs -->
 <div class="card" style="margin-top:1.5rem">
-    <h3>高相似度代码对 (Top {{ sim_results[:20]|length }})</h3>
+    <h3>高相似度文件对 (Top {{ sim_results[:20]|length }})</h3>
     <div style="overflow-x:auto">
     <table class="table">
         <thead>
             <tr>
                 <th>#</th>
-                <th>代码 A (学生)</th>
-                <th>代码 B (学生)</th>
+                <th>文件 A (学生)</th>
+                <th>文件 B (学生)</th>
+                <th>类型</th>
                 <th>Jaccard</th>
-                <th>TreeEdit</th>
+                <th>结构</th>
                 <th>N-gram</th>
                 <th>综合相似度</th>
                 <th>状态</th>
@@ -91,6 +92,13 @@
                 </td>
                 <td>{{ r.submission_b.student.display_name or r.submission_b.student.username }}
                     <small class="muted">({{ r.submission_b.file_name }})</small>
+                </td>
+                <td>
+                    {% if r.submission_a.language in ('txt', 'md', 'docx', 'pdf') %}
+                        <span class="badge" style="background:#e3f2fd;color:#1565c0">文本</span>
+                    {% else %}
+                        <span class="badge" style="background:#f3e5f5;color:#7b1fa2">代码</span>
+                    {% endif %}
                 </td>
                 <td>{{ (r.jaccard_similarity * 100)|int }}%</td>
                 <td>{{ (r.tree_edit_similarity * 100)|int }}%</td>

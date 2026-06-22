@@ -54,7 +54,7 @@ def create_app(config=None):
     app.register_blueprint(plagiarism_bp, url_prefix='/plagiarism')
     app.register_blueprint(viz_bp, url_prefix='/viz')
     app.register_blueprint(admin_bp, url_prefix='/admin')
-
+# 自动创建所有不存在的表
     with app.app_context():
         db.create_all()
 

@@ -1,9 +1,30 @@
+# IDE
+.vscode/
+.IdeaIC2019.3/
+.idea/
+*.iml
+
+# Python
 __pycache__/
 *.pyc
-*.pyo
-instance/
-uploads/
-.env
+.pytest_cache/
 .venv/
 venv/
+env/
+
+# 数据库
 *.db
+*.sqlite
+instance/
+
+# 环境变量
+.env
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 项目
+submissions/
+uploads/
+*.log

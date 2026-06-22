@@ -23,6 +23,8 @@ class Config:
         'UPLOAD_FOLDER',
         os.path.join(BASE_DIR, '..', 'uploads')
     )
-    MAX_CONTENT_LENGTH = 2 * 1024 * 1024  # 2 MB
-    ALLOWED_EXTENSIONS = {'py', 'java', 'c', 'cpp', 'js'}
+    MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB
+    ALLOWED_EXTENSIONS = {'py', 'java', 'c', 'cpp', 'js', 'txt', 'md', 'docx', 'pdf'}
     SIMILARITY_THRESHOLD_DEFAULT = 0.70
+    CODE_LANGUAGES = {'python', 'java', 'c', 'cpp', 'javascript'}
+    TEXT_LANGUAGES = {'txt', 'md', 'docx', 'pdf'}
